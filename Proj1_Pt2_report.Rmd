@@ -1,0 +1,119 @@
+---
+title: "Project 1, Part 2 of Statistical Inference"
+author: "Jin-Keat Lim"
+date: "Friday, October 24, 2014"
+output: pdf_document
+---
+**Introduction**
+
+Before beginning the project, I simply loaded the ToothGrowth dataset into a dataframe. Note I hid the warnings that both "ggplot2" and "xtable" packages were built under R version 3.1.1.
+```{r Proj1Pt1, results="hide", warning=FALSE}
+library(ggplot2)
+library(xtable)
+df <- data.frame(ToothGrowth)
+```
+
+**Part 1** of the project - basic Exploratory Data Analysis of the dataset
+```{r, fig.show="hold", fig.height=2, fig.width=2, dev.args=list(pointsize=7)}
+hist(df$dose)
+hist(df$len)
+
+print(qplot(dose, len, data=df, color=supp, fill=supp) + theme(legend.position="bottom"))
+print(qplot(dose, len, data=df, facets = .~supp))
+print(qplot(supp, len, data=df, facets = .~dose))
+```
+
+Using various histograms and breakdowns, it is easy to see that the doses are separated in 3 categories. Further analysis will be needed to evaluate the effect of **supp** and **dose** on the ToothGrowth **len**.
+
+\newpage
+
+**Part 2** of the project - a basic summary of the data
+```{r, results="asis"}
+options(xtable.comment = FALSE)
+print(xtable(summary(df), caption="Summary of entire dataset"))
+print(xtable(summary(df[df$supp=="OJ",]), caption="Summary of OJ supp"))
+print(xtable(summary(df[df$supp=="VC",]), caption="Summary of VC supp"))
+
+```
+**Part 3** of the project - using confidence intervals and hypothesis tests to compare tooth growth by supp and dose. 
+```{r, results="asis"}
+VC_df <- df[df$supp=="VC",]
+OJ_df <- df[df$supp=="OJ",]
+
+#note I am using T-CI and the qt() function rather than using qnorm()
+
+##T-CI by supp
+OJ_len_CI <- mean(OJ_df$len) + c(-1,1) * qt(0.975, length(OJ_df$len)-1) + 
+              sd(OJ_df$len) / sqrt(length(OJ_df$len))
+VC_len_CI <- mean(VC_df$len) + c(-1,1) * qt(0.975, length(VC_df$len)-1) + 
+              sd(VC_df$len) / sqrt(length(VC_df$len))
+
+CI_df <- t(data.frame(OJ_len_CI, VC_len_CI))
+colnames(CI_df) <- c("lower limit", "upper limit")
+xtable(CI_df, caption="Summary of T-CI lengths by supp")
+
+```
+
+```{r, results="asis"}
+##T-CI by dose
+dose1_df <- df[df$dose==0.5,];dose2_df <- df[df$dose==1,];dose3_df <- df[df$dose==2,]
+
+dose1_len_CI <- mean(dose1_df$len) + c(-1,1) * qt(0.975, length(dose1_df)-1) + 
+  sd(dose1_df$len) / sqrt(length(dose1_df$len))
+dose2_len_CI <- mean(dose2_df$len) + c(-1,1) * qt(0.975, length(dose2_df)-1) + 
+  sd(dose2_df$len) / sqrt(length(dose2_df$len))
+dose3_len_CI <- mean(dose3_df$len) + c(-1,1) * qt(0.975, length(dose3_df)-1) + 
+  sd(dose3_df$len) / sqrt(length(dose3_df$len))
+
+CI_dose_df <- t(data.frame(dose1_len_CI, dose2_len_CI, dose3_len_CI))
+colnames(CI_dose_df) <- c("lower limit", "upper limit")
+xtable(CI_dose_df, caption="Summary of T-CI lengths by dose")
+
+```
+For easier visualization and to also help determine a relevant hypothesis test, I plotted the density of the ToothGrowth **len** broken down by **supp** and **dose**:
+```{r, fig.show="hold", fig.height=3, fig.width=3, dev.args=list(pointsize=8)}
+#taking a look at the density of the tooth growth broken down by dose
+plot_dose <- ggplot(df, aes(x=df$len, fill=factor(df$dose))) +
+        geom_density(alpha=0.2, binwidth=1) + 
+        theme(legend.position="bottom")
+print(plot_dose)
+
+#taking a look at the density of the tooth growth broken down by supp
+plot_supp <- ggplot(df, aes(x=df$len, fill=factor(df$supp))) + 
+  geom_density(alpha=0.2, binwidth=1) + 
+  theme(legend.position="bottom")
+print(plot_supp)
+```
+
+Based on these plots, we can subjectively see that the **dose** affects the **len**, and the effect of the **supp** on the **len** is less clear. I decided to first construct a hypothesis test to test the effect of **supp** on **len**: 
+
+**Null hypothesis:**the mean length of group **supp** OJ is equal to the mean length of group **supp** VC
+```{r}
+print(t.test(len ~ supp, paired=FALSE, var.equal=FALSE, data=df))
+```
+
+The p-value is 6.06%, and is the probability of the null being true. Therefore, this can be considered a failure to reject the null hypothesis (assuming alpha is 5% using a standard 95% CI). 
+
+Because there are three discrete **dose** values, constructing a hypothesis test to test the effect of **dose** on **len** require testing of the below null hypotheses:
+
+- *H*~A~: mean length of group **dose** 0.5 is equal to the mean length of group **dose** 1.0
+- *H*~B~: mean length of group **dose** 1.0 is equal to the mean length of group **dose** 2.0
+- *H*~C~: mean length of group **dose** 0.5 is equal to the mean length of group **dose** 2.0
+
+```{r, results="hold"}
+#testing Ha, Hb, Hc, respectively
+t.test(len ~ dose, paired=FALSE, var.equal=FALSE, data= subset(df, dose %in% c(0.5,1)))
+t.test(len ~ dose, paired=FALSE, var.equal=FALSE, data= subset(df, dose %in% c(1,2)))
+t.test(len ~ dose, paired=FALSE, var.equal=FALSE, data= subset(df, dose %in% c(0.5,2)))
+```
+
+All 3 of these tests show small p-values, and the null hypotheses *H*~A~, *H*~B~, *H*~C~ can all be rejected. We can conclude the alternative hypotheses that the **dose** administered does make a difference in the **len**.  
+
+
+**Part 4 - Conclusion and Assumptions**
+
+For all hypothesis testing, an alpha of 0.05 was assumed (standard 95% CI). In addition, each **t.test()** assumed unequal variances between each corresponding group. 
+
+When testing the effect of **supp** on **len**, the p-value 0.0606 > alpha 0.05, resulting in a failure to reject the null hypothesis. There is not sufficient evidence to say that the **supp** administered makes no difference in the **len**. 
+
+When testing the effect of **dose** on **len**, the *H*~A~, *H*~B~, *H*~C~ p-values  << alpha 0.05, resulting in a rejection of the null hypothesis. We can state there is sufficient evidence to reject the null hypotheses, and accept the alternate hypotheses that the **dose** administered makes a difference in the **len**. This is supported by the density plot observed earlier.
